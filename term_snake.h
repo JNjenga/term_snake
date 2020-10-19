@@ -9,6 +9,19 @@
 #include <time.h>
 #include <sys/select.h>
 
+#define UP 1
+#define DOWN 2
+#define LEFT 3
+#define RIGHT 4
+
+enum keys
+{
+	ARROW_UP = 1000,
+	ARROW_DOWN,
+	ARROW_RIGHT,
+	ARROW_LEFT,
+};
+
 struct window_data
 {
 	int rows;
@@ -25,6 +38,9 @@ struct abuf
 struct game_data
 {
 	char **screen;
+	int hr, hc;
+	int length;
+	int dir;
 }g_data;
 
 void die(const char * error)
@@ -69,7 +85,7 @@ void enable_rawmode()
 		die("tcsetattr");
 }
 
-char read_key()
+int read_key()
 {
 	int nread;
 	char c;
@@ -79,8 +95,8 @@ char read_key()
 	FD_SET(0, &read_fds);
 
 	struct timeval timeout;
-	timeout.tv_sec = 2.0;
-	timeout.tv_usec = 0;
+	timeout.tv_sec = 0.9;
+	timeout.tv_usec = 0.9;
 
 	int ret = select(1, &read_fds, NULL, NULL, &timeout);
 
@@ -89,6 +105,28 @@ char read_key()
 		while((nread = read(STDIN_FILENO, &c, 1) != 1))
 		{
 			if(nread == -1 && errno != EAGAIN) die("Read Key");
+		}
+
+		if(c == '\x1b')
+		{
+			char seq[3];
+
+			if(read(STDIN_FILENO, &seq[0], 1) != 1) return '\x1b';
+			if(read(STDIN_FILENO, &seq[1], 1) != 1) return '\x1b';
+
+			if(seq[0] == '[')
+			{
+				if(seq[1])
+				{
+					switch(seq[1])
+					{
+						case 'A' : return ARROW_UP;
+						case 'B' : return ARROW_DOWN;
+						case 'C' : return ARROW_RIGHT;
+						case 'D' : return ARROW_LEFT;
+					}
+				}
+			}
 		}
 	}
 
@@ -148,6 +186,74 @@ void ab_free(struct abuf * ab)
 	free(ab->b);
 }
 
+/*
+ * Moves the snake to the next step
+ *
+ */
+void move_rec(int length, int next_r, int next_c,
+		int current_r, int current_c)
+{	
+	if(length < 0) {
+		g_data.screen[current_r][current_c] = 0;
+		return;
+	}
+
+	length--;
+	
+	// If you want to handle collisions, do it here
+	g_data.screen[next_r][next_c] = g_data.screen[current_r][current_c];
+
+	if(g_data.screen[current_r][current_c-1] != 0 && (current_c-1) != next_c)		// Leftside
+	{
+		next_r = current_r; next_c = current_c;
+		current_c--;
+	} else if(g_data.screen[current_r][current_c+1] != 0 && (current_c+1) != next_c)	// Rightside 
+	{
+		next_r = current_r; next_c = current_c;
+		current_c++;
+	} else if(g_data.screen[current_r-1][current_c] != 0 && (current_r-1) != next_r)	// Upside 
+	{
+		next_r = current_r; next_c = current_c;
+		current_r--;
+	} else if(g_data.screen[current_r+1][current_c] != 0 && (current_r+1) != next_r)	// Downside 
+	{
+		next_r = current_r; next_c = current_c;
+		current_r++;
+	}
+
+	move_rec(length, next_r, next_c, current_r, current_c);
+}
+
+void tick()
+{
+	int current_r = g_data.hr, current_c = g_data.hc;
+	int next_r = current_r , next_c = current_c;
+
+	switch(g_data.dir) {
+		case UP :
+			next_r--;
+			break;
+		case DOWN:
+			next_r++;
+			break;
+		case LEFT:
+			next_c--;
+			break;
+		case RIGHT:
+			next_c++;
+			break;
+		default:
+			break;
+	}
+
+	g_data.hr = next_r; g_data.hc = next_c;
+
+	move_rec(g_data.length, next_r, next_c, current_r, current_c);
+
+	// print_snake();
+	// printf("r : %d, c : %d, nr : %d, nc : %d\n", current_r, current_c, next_r, next_c);
+}
+
 void init()
 {
 	enable_rawmode();
@@ -165,12 +271,24 @@ void init()
 
 	for(int i = 0; i < E.rows; i++)
 	{
-
 		for(int j = 0; j < E.cols; j++)
 		{
-			g_data.screen[i][j] = '0';
+			g_data.screen[i][j] = 0;
 		}
 	}
+	
+	int hr = E.rows/2; 
+	int hc = E.cols/2;
+
+	g_data.dir = UP;
+	g_data.length = 2;
+
+	g_data.hr = E.rows/2;
+	g_data.hc = E.cols/2;
+
+	g_data.screen[hr][hc] = 'x';
+	g_data.screen[hr][hc-1] = '+';
+	g_data.screen[hr][hc-2] = '+';
 }
 
 void render()
@@ -182,10 +300,12 @@ void render()
 
 	for(int i = 0; i < E.rows; i++)
 	{
-
 		for(int j = 0; j < E.cols; j++)
 		{
-			ab_append(&ab, &g_data.screen[i][j], 1);
+			if(g_data.screen[i][j] == 0)
+				ab_append(&ab, " ", 1);
+			else
+				ab_append(&ab, &g_data.screen[i][j], 1);
 		}
 
 		// ab_append(&ab, "\r\n", 2);
@@ -207,6 +327,21 @@ void handle_input()
 		case 'q':
 			disable_rawmode();
 			exit(0);
+			break;
+		case ARROW_UP:
+			g_data.dir = UP;
+			break;
+
+		case ARROW_DOWN:
+			g_data.dir = DOWN;
+			break;
+
+		case ARROW_LEFT:
+			g_data.dir = LEFT;
+			break;
+
+		case ARROW_RIGHT:
+			g_data.dir = RIGHT;
 			break;
 		default:
 			break;

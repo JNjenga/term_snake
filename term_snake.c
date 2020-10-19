@@ -8,6 +8,7 @@ int main(void)
 	{
 		render();
 		handle_input();
+		tick();
 	}
 
 	exit_app();

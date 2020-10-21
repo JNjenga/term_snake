@@ -95,8 +95,8 @@ int read_key()
 	FD_SET(0, &read_fds);
 
 	struct timeval timeout;
-	timeout.tv_sec = 0.9;
-	timeout.tv_usec = 0.9;
+	timeout.tv_sec = 1.0;
+	timeout.tv_usec = 0.0;
 
 	int ret = select(1, &read_fds, NULL, NULL, &timeout);
 
@@ -192,7 +192,7 @@ void ab_free(struct abuf * ab)
  */
 void move_rec(int length, int next_r, int next_c,
 		int current_r, int current_c)
-{	
+{
 	if(length < 0) {
 		g_data.screen[current_r][current_c] = 0;
 		return;
@@ -202,23 +202,34 @@ void move_rec(int length, int next_r, int next_c,
 	
 	// If you want to handle collisions, do it here
 	g_data.screen[next_r][next_c] = g_data.screen[current_r][current_c];
+	
 
-	if(g_data.screen[current_r][current_c-1] != 0 && (current_c-1) != next_c)		// Leftside
-	{
-		next_r = current_r; next_c = current_c;
-		current_c--;
-	} else if(g_data.screen[current_r][current_c+1] != 0 && (current_c+1) != next_c)	// Rightside 
+	if(g_data.screen[current_r][current_c+1] != 0 && (current_c+1) != next_c)	// Rightside 
 	{
 		next_r = current_r; next_c = current_c;
 		current_c++;
-	} else if(g_data.screen[current_r-1][current_c] != 0 && (current_r-1) != next_r)	// Upside 
-	{
-		next_r = current_r; next_c = current_c;
-		current_r--;
-	} else if(g_data.screen[current_r+1][current_c] != 0 && (current_r+1) != next_r)	// Downside 
+	} 
+	else if(g_data.screen[current_r+1][current_c] != 0 && (current_r+1) != next_r)	// Downside 
 	{
 		next_r = current_r; next_c = current_c;
 		current_r++;
+	}  else if(g_data.screen[current_r][current_c-1] != 0 && (current_c-1) != next_c)		// Leftside
+	{
+		next_r = current_r; next_c = current_c;
+		current_c--;
+	}else if(next_r == 0){
+		if(g_data.screen[current_r][current_c-1] != 0){
+			next_r = current_r; next_c = current_c;
+			current_c --;
+		}else{
+			next_r = current_r; next_c = current_c;
+			current_c++;
+		}
+	}
+	else if(g_data.screen[current_r-1][current_c] != 0 && (current_r-1) != next_r)	// Upside 
+	{
+		next_r = current_r; next_c = current_c;
+		current_r--;
 	}
 
 	move_rec(length, next_r, next_c, current_r, current_c);
@@ -246,6 +257,12 @@ void tick()
 			break;
 	}
 
+	if(next_r < 0 || next_c < 0 || next_r > E.rows - 1 || next_c > E.cols - 1)
+	{
+		printf("next_row = %d, next_col = %d\r\n", next_r, next_c);
+		return;
+	}
+
 	g_data.hr = next_r; g_data.hc = next_c;
 
 	move_rec(g_data.length, next_r, next_c, current_r, current_c);
@@ -257,6 +274,7 @@ void tick()
 void init()
 {
 	enable_rawmode();
+
 	write(STDOUT_FILENO, "\x1b[2J", 4);
 	write(STDOUT_FILENO, "\x1b[?25l", 6);
 	
@@ -302,7 +320,11 @@ void render()
 	{
 		for(int j = 0; j < E.cols; j++)
 		{
-			if(g_data.screen[i][j] == 0)
+			if(i == 0 ||i == E.rows-1 )
+				ab_append(&ab, "#", 1);
+			else if( j == 0 ||  j == E.cols-1)
+				ab_append(&ab, "*", 1);
+			else if(g_data.screen[i][j] == 0)
 				ab_append(&ab, " ", 1);
 			else
 				ab_append(&ab, &g_data.screen[i][j], 1);

@@ -1,6 +1,6 @@
 # term_snake
 
-[![Video](https://raw.github.com/Jnjenga/term_snake/master/screenshot/screenshot.png)](https://raw.github.com/Jnjenga/term_snake/master/screenshot/screenshot/video.mkv)
+[![Video](/screenshot/screenshot.png)](/screenshot/video.mkv)
 
 
 As the name suggests this is a snake game that runs on the terminal built using C.

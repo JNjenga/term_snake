@@ -203,8 +203,8 @@ void ab_free(struct abuf * ab)
 
 void spwan_food()
 {
-	unsigned int r = rand() % (E.rows - 1);
-	unsigned int c = rand() % (E.cols - 1);
+	unsigned int r = rand() % (E.rows - 3) + 1;
+	unsigned int c = rand() % (E.cols - 2) + 1;
 	
 	while(g_data.screen[r][c] != 0)
 	{
@@ -302,7 +302,7 @@ void tick()
 			break;
 	}
 
-	if(next_r < 2 || next_c < 1 || next_r > E.rows - 2 || next_c > E.cols - 2)
+	if(next_r < 2 || next_c < 1 || next_r > E.rows - 3 || next_c > E.cols - 2)
 	{
 		return;
 	}

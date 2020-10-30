@@ -4,13 +4,16 @@ int main(void)
 {
 	init();
 
+
 	while(1)
 	{
+
 		render();
 		handle_input();
-		tick();
 	}
-
+	
+	disable_rawmode();
 	exit_app();
+
 	return 0;
 }

@@ -9,10 +9,18 @@
 #include <time.h>
 #include <sys/select.h>
 
+/******** DEFINES SECTION ********************/
+
 #define UP 1
 #define DOWN 2
 #define LEFT 3
 #define RIGHT 4
+
+#define SNAKE_FOOD_CHAR '@'
+#define SNAKE_HEAD_CHAR 'x'
+#define SNAKE_BODY_CHAR '+'
+
+/******** DATA SECTION ********************/
 
 enum keys
 {
@@ -37,11 +45,16 @@ struct abuf
 
 struct game_data
 {
-	char **screen;
-	int hr, hc;
-	int length;
-	int dir;
+	char **screen;	// Window data
+	int hr, hc;		// Snake head, (row , column)
+	int grow;
+	int length;		// Snake length
+	int dir;		// Snake direction
+	int score;		// Game score
+	int pause;		// Game state 
 }g_data;
+
+/******** TERMINAL SECTIONS ********************/
 
 void die(const char * error)
 {
@@ -186,15 +199,37 @@ void ab_free(struct abuf * ab)
 	free(ab->b);
 }
 
-/*
- * Moves the snake to the next step
- *
- */
+/******** GAME SECTION ********************/
+
+void spwan_food()
+{
+	unsigned int r = rand() % (E.rows - 1);
+	unsigned int c = rand() % (E.cols - 1);
+	
+	while(g_data.screen[r][c] != 0)
+	{
+		r = rand() % (E.rows - 2) + 1;
+		c = rand() % (E.cols - 2) + 1;
+	}
+
+	g_data.screen[r][c] = SNAKE_FOOD_CHAR;
+}
+
+ /* Moves the snake to the next step recursively */
+
 void move_rec(int length, int next_r, int next_c,
 		int current_r, int current_c)
 {
 	if(length < 0) {
-		g_data.screen[current_r][current_c] = 0;
+		if(g_data.grow)
+		{
+			g_data.screen[current_r][current_c] = SNAKE_BODY_CHAR;
+			g_data.length ++;
+			g_data.grow = 0;
+		} else
+		{
+			g_data.screen[current_r][current_c] = 0;
+		}
 		return;
 	}
 
@@ -204,21 +239,29 @@ void move_rec(int length, int next_r, int next_c,
 	g_data.screen[next_r][next_c] = g_data.screen[current_r][current_c];
 	
 
-	if(g_data.screen[current_r][current_c+1] != 0 && (current_c+1) != next_c)	// Rightside 
+	if((g_data.screen[current_r][current_c+1] == SNAKE_HEAD_CHAR
+			|| g_data.screen[current_r][current_c+1] == SNAKE_BODY_CHAR )
+			&& (current_c+1) != next_c)	// Rightside 
 	{
 		next_r = current_r; next_c = current_c;
 		current_c++;
 	} 
-	else if(g_data.screen[current_r+1][current_c] != 0 && (current_r+1) != next_r)	// Downside 
+	else if((g_data.screen[current_r+1][current_c] == SNAKE_HEAD_CHAR
+			|| g_data.screen[current_r+1][current_c] == SNAKE_BODY_CHAR )
+			&& (current_r+1) != next_r)	// Downside 
 	{
 		next_r = current_r; next_c = current_c;
 		current_r++;
-	}  else if(g_data.screen[current_r][current_c-1] != 0 && (current_c-1) != next_c)		// Leftside
+	}  else if((g_data.screen[current_r][current_c-1] == SNAKE_HEAD_CHAR
+			|| g_data.screen[current_r][current_c-1] == SNAKE_BODY_CHAR)
+			&& (current_c-1) != next_c)		// Leftside
 	{
 		next_r = current_r; next_c = current_c;
 		current_c--;
 	}else if(next_r == 0){
-		if(g_data.screen[current_r][current_c-1] != 0){
+		if(g_data.screen[current_r][current_c-1] == SNAKE_HEAD_CHAR
+				|| g_data.screen[current_r][current_c-1] == SNAKE_BODY_CHAR)
+		{
 			next_r = current_r; next_c = current_c;
 			current_c --;
 		}else{
@@ -226,7 +269,9 @@ void move_rec(int length, int next_r, int next_c,
 			current_c++;
 		}
 	}
-	else if(g_data.screen[current_r-1][current_c] != 0 && (current_r-1) != next_r)	// Upside 
+	else if((g_data.screen[current_r-1][current_c] == SNAKE_HEAD_CHAR ||
+				g_data.screen[current_r-1][current_c] == SNAKE_BODY_CHAR)
+				 && (current_r-1) != next_r)	// Upside 
 	{
 		next_r = current_r; next_c = current_c;
 		current_r--;
@@ -257,26 +302,34 @@ void tick()
 			break;
 	}
 
-	if(next_r < 0 || next_c < 0 || next_r > E.rows - 1 || next_c > E.cols - 1)
+	if(next_r < 2 || next_c < 1 || next_r > E.rows - 2 || next_c > E.cols - 2)
 	{
-		printf("next_row = %d, next_col = %d\r\n", next_r, next_c);
 		return;
 	}
-
+	
+	if(g_data.screen[next_r][next_c] == SNAKE_FOOD_CHAR) 
+	{
+		spwan_food();
+		g_data.score ++;
+		g_data.screen[next_r][next_c] = 0;
+		g_data.grow = 1;
+	}
 	g_data.hr = next_r; g_data.hc = next_c;
 
 	move_rec(g_data.length, next_r, next_c, current_r, current_c);
 
-	// print_snake();
-	// printf("r : %d, c : %d, nr : %d, nc : %d\n", current_r, current_c, next_r, next_c);
 }
+
+
 
 void init()
 {
 	enable_rawmode();
 
-	write(STDOUT_FILENO, "\x1b[2J", 4);
-	write(STDOUT_FILENO, "\x1b[?25l", 6);
+	srand(time(NULL));
+
+	write(STDOUT_FILENO, "\x1b[2J", 4);		// Clear screen
+	write(STDOUT_FILENO, "\x1b[?25l", 6);	// Hide cursor
 	
 	get_window_size(&E.rows, &E.cols);
 
@@ -295,6 +348,8 @@ void init()
 		}
 	}
 	
+	g_data.pause = 0;
+
 	int hr = E.rows/2; 
 	int hc = E.cols/2;
 
@@ -304,9 +359,13 @@ void init()
 	g_data.hr = E.rows/2;
 	g_data.hc = E.cols/2;
 
-	g_data.screen[hr][hc] = 'x';
-	g_data.screen[hr][hc-1] = '+';
-	g_data.screen[hr][hc-2] = '+';
+	g_data.screen[hr][hc] = SNAKE_HEAD_CHAR;
+	g_data.screen[hr][hc-1] = SNAKE_BODY_CHAR;
+	g_data.screen[hr][hc-2] = SNAKE_BODY_CHAR;
+
+	g_data.score = 0;
+
+	spwan_food();
 }
 
 void render()
@@ -316,30 +375,55 @@ void render()
 	ab_append(&ab, "\x1b[0;0H", 6);
 	ab_append(&ab, "\x1b[0K", 4);
 
-	for(int i = 0; i < E.rows; i++)
+	if(g_data.pause != 1)
 	{
-		for(int j = 0; j < E.cols; j++)
+		tick();
+
+		for(int i = 0; i < E.rows; i++)
 		{
-			if(i == 0 ||i == E.rows-1 )
-				ab_append(&ab, "#", 1);
-			else if( j == 0 ||  j == E.cols-1)
-				ab_append(&ab, "*", 1);
-			else if(g_data.screen[i][j] == 0)
-				ab_append(&ab, " ", 1);
-			else
-				ab_append(&ab, &g_data.screen[i][j], 1);
+			for(int j = 0; j < E.cols; j++)
+			{
+				if(i == 1 ||i == E.rows-2 )
+					ab_append(&ab, "#", 1);
+				else if( j == 0 ||  j == E.cols-1)
+					ab_append(&ab, "*", 1);
+				else if(g_data.screen[i][j] == 0)
+					ab_append(&ab, " ", 1);
+				else
+					ab_append(&ab, &g_data.screen[i][j], 1);
+			}
 		}
 
-		// ab_append(&ab, "\r\n", 2);
 	}
 
+	ab_append(&ab, "\x1b[0;0H", 6);
+
+	char buf[60];
+
+	int len = snprintf(buf, 23, "SCORE : [%d] %s", g_data.score, (g_data.pause) ? "PAUSED" : "NOT PAUSED");
+
+	ab_append(&ab, buf, len);
+	
+	// char last_row[10];
+	len = snprintf(buf, 58, "\x1b[%d;0H <Q> : Quit, <P> : Pause/help, <ARROWS> : Movements", E.rows);
+	
+	ab_append(&ab, buf, len);
 
 	write(STDOUT_FILENO, ab.b, ab.len);
 	ab_free(&ab);
 }
 
-void update()
+void exit_app()
 {
+	for(int i = 0; i < E.rows; i++)
+	{
+		free(g_data.screen[i]);
+	}
+
+	free(g_data.screen);
+
+	write(STDOUT_FILENO, "\x1b[2J", 4);	
+	write(STDOUT_FILENO, "\x1b[?25h", 6);
 }
 
 void handle_input()
@@ -348,6 +432,7 @@ void handle_input()
 	{
 		case 'q':
 			disable_rawmode();
+			exit_app();
 			exit(0);
 			break;
 		case ARROW_UP:
@@ -365,18 +450,14 @@ void handle_input()
 		case ARROW_RIGHT:
 			g_data.dir = RIGHT;
 			break;
+		case 'p':
+			if(g_data.pause == 1)
+				g_data.pause = 0;
+			else
+				g_data.pause = 1;
+			break;
 		default:
 			break;
 	}
 }
 
-void exit_app()
-{
-	for(int i = 0; i < E.rows; i++)
-	{
-		free(g_data.screen[i]);
-	}
-
-	free(g_data.screen);
-	write(STDOUT_FILENO, "\x1b[?25h", 6);	
-}

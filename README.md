@@ -1,6 +1,6 @@
 # term_snake
 
-[![Video](/screenshot/screenshot.png)](/screenshot/video.mkv)
+![Video](/screenshot/video.gif)
 
 
 As the name suggests this is a snake game that runs on the terminal built using C.

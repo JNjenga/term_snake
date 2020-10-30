@@ -1,5 +1,8 @@
 # term_snake
 
+[![Video](https://raw.github.com/Jnjenga/term_snake/master/screenshot/screenshot.png)](https://raw.github.com/Jnjenga/term_snake/master/screenshot/screenshot/video.mkv)
+
+
 As the name suggests this is a snake game that runs on the terminal built using C.
 It's a small project I did as I was learning C and terminal stuff. I did it right after completing part one and two of the [Build Your Own Text Editor](https://viewsourcecode.org/snaptoken/kilo/) tutorial.
 
